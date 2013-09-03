@@ -1,0 +1,51 @@
+#!/usr/bin/python
+
+import argparse
+import uuid
+
+from boto.ec2 import elb
+from boto import ec2
+from boto.route53.connection import Route53Connection
+
+parser = argparse.ArgumentParser(description='Supervise pushgo service.')
+parser.add_argument('-r', '--region', default='us-west-2')
+parser.add_argument('--elb', required=True, help="ELB Name")
+parser.add_argument('--rr', required=True, help="Resource Record Name")
+parser.add_argument('--zone', required=True, help="Zone Name")
+args = parser.parse_args()
+
+conn_elb = elb.connect_to_region(args.region)
+conn_ec2 = ec2.connect_to_region(args.region)
+conn_r53 = Route53Connection()
+
+health = conn_elb.describe_instance_health(args.elb)
+
+healthy = [h.instance_id for h in health if h.state == 'InService']
+
+if not healthy:
+    exit(1)
+
+reservations = conn_ec2.get_all_instances(healthy)
+instance_ips = [i.public_ip_address
+                for r in reservations for i in r.instances]
+
+zone = conn_r53.get_zone(args.zone)
+if not zone:
+    print "Zone not found: %s" % args.zone
+    exit(1)
+rrs = zone.get_a(args.rr, all=True)
+if rrs:
+    registered_ips = [ip for rr in rrs for ip in rr.resource_records]
+else:
+    registered_ips = []
+
+ttl = 5 if not rrs else rrs[0].ttl
+
+for ip in instance_ips:
+    if ip not in registered_ips:
+        zone.add_a(args.rr, ip, ttl=ttl, identifier=(uuid.uuid4(), 10))
+
+for rr in rrs:
+    if (len(rr.resource_records) != 1 or
+            rr.resource_records[0] not in instance_ips):
+        zone.delete_record(rr)
