@@ -26,14 +26,14 @@ if not healthy:
     exit(1)
 
 reservations = conn_ec2.get_all_instances(healthy)
-instance_ips = [i.ip_address
-                for r in reservations for i in r.instances]
+instance_names = [i.public_dns_name
+                  for r in reservations for i in r.instances]
 
 zone = conn_r53.get_zone(args.zone)
 if not zone:
     print "Zone not found: %s" % args.zone
     exit(1)
-rrs = zone.get_a(args.rr, all=True)
+rrs = zone.get_cname(args.rr, all=True)
 if rrs is None:
     rrs = []
 
@@ -42,17 +42,19 @@ try:
 except TypeError:
     rrs = [rrs]
 
-registered_ips = [ip for rr in rrs for ip in rr.resource_records]
+registered_names = [dnsname[:-1] for rr in rrs
+                    for dnsname in rr.resource_records]
 
 ttl = 5 if not rrs else rrs[0].ttl
 
-for ip in instance_ips:
-    if ip not in registered_ips:
-        print "adding:", ip
-        zone.add_a(args.rr, ip, ttl=ttl, identifier=(uuid.uuid4(), 10))
+for dnsname in instance_names:
+    if dnsname not in registered_names:
+        print "adding:", dnsname
+        zone.add_cname(args.rr, dnsname,
+                       ttl=ttl, identifier=(uuid.uuid4(), 10))
 
 for rr in rrs:
     if (len(rr.resource_records) != 1 or
-            rr.resource_records[0] not in instance_ips):
+            rr.resource_records[0][:-1] not in instance_names):
         print "removing:", rr.resource_records
         zone.delete_record(rr)
