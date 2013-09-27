@@ -24,10 +24,13 @@ def main():
 
     c = ec2.connect_to_region(args.region)
 
-    instances = c.get_only_instances(
+    reservations = c.get_all_instances(
         filters={'tag:aws:cloudformation:stack-name': args.stackname,
                  'tag:Role': 'app'}
     )
+
+    instances = [i for r in reservations for i in r.instances]
+
     if not instances:
         print "No instances found."
         exit(1)
