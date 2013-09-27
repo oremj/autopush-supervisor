@@ -1,0 +1,50 @@
+import argparse
+from datetime import datetime
+from multiprocessing import Pool
+
+import requests
+from boto import ec2
+from boto.ec2 import cloudwatch
+
+
+def get_status(instance):
+    r = requests.get('http://%s/realstatus' % instance.public_dns_name)
+    return (instance, r.json())
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-r', '--region', default='us-west-2')
+    parser.add_argument('-s', '--stackname', help='stack name')
+    parser.add_argument('-e', '--env', default='prod',
+                        help='environment e.g., dev,stage,prod')
+    args = parser.parse_args()
+
+    c = ec2.connect_to_region(args.region)
+
+    instances = c.get_only_instances(
+        filters={'tag:aws:cloudformation:stack-name': args.stackname,
+                 'tag:Role': 'app'}
+    )
+    if not instances:
+        print "No instances found."
+        exit(1)
+
+    p = Pool(6)
+    status = p.map(get_status, instances)
+    check_time = datetime.now()
+
+    c = cloudwatch.connect_to_region(args.region)
+
+    for inst, data in status:
+        c.put_metric_data(
+            namespace='Pushgo',
+            name='connectionCount',
+            timestamp=check_time,
+            value=data['clientCount'],
+            unit='Count',
+            dimensions={'InstanceId': inst.id,
+                        'Env': 'prod'}
+        )
+
+main()
