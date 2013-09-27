@@ -35,7 +35,7 @@ def main():
 
     p = Pool(6)
     status = p.map(get_status, instances)
-    check_time = datetime.now()
+    check_time = datetime.utcnow()
 
     c = cloudwatch.connect_to_region(args.region)
 
