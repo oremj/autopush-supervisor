@@ -53,8 +53,12 @@ def main():
             **kwargs
         )
 
+    client_counts = [data['clientCount'] for inst, data in status]
     c.put_metric_data(
-        value=sum([data['clientCount'] for inst, data in status]),
+        statistics={'maximum': max(client_counts),
+                    'minimum': min(client_counts),
+                    'samplecount': len(client_counts),
+                    'sum': sum(client_counts)},
         dimensions={'Stack': args.stackname},
         **kwargs
     )
