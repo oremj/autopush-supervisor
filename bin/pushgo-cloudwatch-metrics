@@ -39,16 +39,24 @@ def main():
 
     c = cloudwatch.connect_to_region(args.region)
 
+    kwargs = {
+        'namespace': 'Pushgo',
+        'name': 'connectionCount',
+        'timestamp': check_time,
+        'unit': 'Count',
+    }
+
     for inst, data in status:
-        for dimension in [{'InstanceId': inst.id},
-                          {'Stack': args.stackname}]:
-            c.put_metric_data(
-                namespace='Pushgo',
-                name='connectionCount',
-                timestamp=check_time,
-                value=data['clientCount'],
-                unit='Count',
-                dimensions=dimension
-            )
+        c.put_metric_data(
+            value=data['clientCount'],
+            dimensions={'InstanceId': inst.id},
+            **kwargs
+        )
+
+    c.put_metric_data(
+        value=sum([data['clientCount'] for inst, data in status]),
+        dimensions={'Stack': args.stackname},
+        **kwargs
+    )
 
 main()
