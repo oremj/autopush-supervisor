@@ -24,7 +24,7 @@ def main():
 
     reservations = c.get_all_instances(
         filters={'tag:aws:cloudformation:stack-name': args.stackname,
-                 'tag:Role': 'app'}
+                 'tag:Type': 'web'}
     )
 
     instances = [i for r in reservations for i in r.instances]
