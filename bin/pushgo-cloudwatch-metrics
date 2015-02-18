@@ -10,8 +10,12 @@ from boto.ec2 import cloudwatch
 
 
 def get_status(instance):
-    r = requests.get('http://%s/realstatus' % instance.public_dns_name)
-    return (instance, r.json())
+    try:
+        r = requests.get('http://%s/realstatus/' % instance.public_dns_name)
+        return (instance, r.json())
+    except Exception, e:
+        print e
+        return None
 
 
 def main():
@@ -24,7 +28,7 @@ def main():
 
     reservations = c.get_all_instances(
         filters={'tag:aws:cloudformation:stack-name': args.stackname,
-                 'tag:Type': 'web'}
+                 'tag:aws:cloudformation:logical-id': 'AppServerAutoScale'}
     )
 
     instances = [i for r in reservations for i in r.instances]
@@ -34,7 +38,7 @@ def main():
         exit(1)
 
     p = Pool(6)
-    status = p.map(get_status, instances)
+    status = [s for s in p.map(get_status, instances) if s is not None]
     check_time = datetime.utcnow()
 
     c = cloudwatch.connect_to_region(args.region)

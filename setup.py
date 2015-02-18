@@ -3,7 +3,7 @@ from distutils.core import setup
 
 setup(
     name='pushgo-supervisor',
-    version='0.0.4',
+    version='0.0.5',
     description='Monitors health of instances within an ELB '
                 'and adjusts a route53 resource group.',
     author='Jeremy Orem',
