@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 import argparse
+import os
+
 from datetime import datetime
 from multiprocessing import Pool
 
@@ -16,6 +18,23 @@ def get_status(instance):
     except Exception, e:
         print e
         return None
+
+
+def datadog_metrics(statuses):
+    try:
+        from dogapi import dog_http_api as api
+    except ImportError:
+        return
+
+    try:
+        api.api_key = os.environ['DATADOG_API_KEY']
+    except KeyError:
+        return
+
+    for instance, status in statuses:
+        tags = ["%s:%s" % (key, val) for key, val in instance.tags.iteritems()]
+        api.metric('pushgo.client_count', status['clientCount'],
+                   tags=tags, host=instance.id)
 
 
 def main():
@@ -40,6 +59,8 @@ def main():
     p = Pool(6)
     status = [s for s in p.map(get_status, instances) if s is not None]
     check_time = datetime.utcnow()
+
+    datadog_metrics(status)
 
     c = cloudwatch.connect_to_region(args.region)
 
